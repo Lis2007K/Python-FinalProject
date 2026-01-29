@@ -8,7 +8,7 @@ from datetime import datetime, date
 import csv
 import os
 
-from database.db import add_transaction as db_add_transaction, get_transactions_by_user, get_balance, get_monthly_summary
+from database.db import add_transaction as db_add_transaction, get_transactions_by_user, get_balance, get_monthly_summary, update_transaction as db_update_transaction, delete_transaction as db_delete_transaction
 from database.models import Transaction as DBTransaction
 from config import settings
 from .transaction import to_dict
@@ -70,6 +70,37 @@ def get_transactions_filtered(user_id: int, limit: int = 500, start_date: Option
         if ok:
             filtered.append(t)
     return filtered
+
+
+def update_transaction_validated(user_id: int, tx_id: int, date_iso: str, amount: float, category: str, ttype: str, description: Optional[str] = None) -> Tuple[bool, str]:
+    if user_id is None:
+        return False, "User not authenticated."
+
+    try:
+        datetime.fromisoformat(date_iso)
+    except Exception:
+        return False, "Invalid date format. Use YYYY-MM-DD."
+
+    try:
+        amount = float(amount)
+        if amount <= 0:
+            return False, "Amount must be greater than zero."
+    except Exception:
+        return False, "Invalid amount."
+
+    if ttype not in ("income", "expense"):
+        return False, "Type must be 'income' or 'expense'."
+
+    if not category or not category.strip():
+        return False, "Category is required."
+
+    return db_update_transaction(tx_id, user_id, date_iso, amount, category.strip(), ttype, description)
+
+
+def delete_transaction(user_id: int, tx_id: int) -> Tuple[bool, str]:
+    if user_id is None:
+        return False, "User not authenticated."
+    return db_delete_transaction(tx_id, user_id)
 
 
 def calculate_balance(user_id: int) -> float:

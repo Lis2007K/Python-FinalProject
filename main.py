@@ -1,4 +1,5 @@
 import streamlit as st
+from datetime import datetime, timedelta
 
 from auth import register_user, login_user, current_user_safe
 from finance import (
@@ -6,15 +7,27 @@ from finance import (
     add_transaction_validated,
     get_transactions_filtered,
     export_transactions_csv,
-    get_monthly_summary
+    get_monthly_summary,
+    calculate_balance
 )
 from visualization.charts import (
     plot_monthly_summary,
-    pie_expense_by_category
+    pie_expense_by_category,
+    plot_income_vs_expense_bars,
+    plot_category_income_expense,
+    plot_cumulative_balance
 )
 
 
-st.set_page_config(page_title="Personal Finance Tracker", layout="wide")
+st.set_page_config(page_title="Personal Finance Tracker", layout="wide", initial_sidebar_state="expanded")
+
+# Custom CSS for better styling
+st.markdown("""
+    <style>
+    .metric-card { background-color: #f0f2f6; padding: 20px; border-radius: 10px; }
+    .stat-value { font-size: 28px; font-weight: bold; }
+    </style>
+    """, unsafe_allow_html=True)
 
 st.title("💰 Personal Finance Tracker")
 
@@ -60,6 +73,34 @@ st.sidebar.success(f"Logged in as {st.session_state.user['username']}")
 if st.sidebar.button("Logout"):
     st.session_state.user = None
     st.rerun()
+
+
+# ========== DASHBOARD SECTION ==========
+st.header("📈 Dashboard")
+
+transactions = get_transactions_filtered(st.session_state.user["id"]) if st.session_state.user else []
+balance = calculate_balance(st.session_state.user["id"]) if st.session_state.user else 0
+
+# Calculate metrics
+total_income = sum(t.amount for t in transactions if t.ttype == "income")
+total_expense = sum(t.amount for t in transactions if t.ttype == "expense")
+net_balance = total_income - total_expense
+
+# Display metrics in columns
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric("💵 Total Income", f"${total_income:,.2f}", delta=None)
+
+with col2:
+    st.metric("💸 Total Expenses", f"${total_expense:,.2f}", delta=None)
+
+with col3:
+    st.metric("📊 Net Balance", f"${net_balance:,.2f}", 
+              delta=f"{'Positive' if net_balance >= 0 else 'Negative'}")
+
+with col4:
+    st.metric("📌 Current Balance", f"${balance:,.2f}", delta=None)
 
 
 st.header("➕ Add Transaction")
@@ -119,7 +160,40 @@ st.header("📊 Analytics")
 
 if transactions:
     summary = get_monthly_summary(st.session_state.user["id"])
-    fig_summary = plot_monthly_summary(summary)
-    st.pyplot(fig_summary)
-    fig_pie = pie_expense_by_category(transactions)
-    st.pyplot(fig_pie)
+    
+    # Create tabs for different views
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📈 Trend",
+        "📊 Comparison",
+        "🍰 Distribution",
+        "💰 Categories",
+        "📉 Cumulative"
+    ])
+    
+    with tab1:
+        st.subheader("Monthly Trend Analysis")
+        fig_summary = plot_monthly_summary(summary)
+        st.pyplot(fig_summary)
+    
+    with tab2:
+        st.subheader("Income vs Expense Comparison")
+        fig_bars = plot_income_vs_expense_bars(summary)
+        st.pyplot(fig_bars)
+    
+    with tab3:
+        st.subheader("Expense Distribution by Category")
+        fig_pie = pie_expense_by_category(transactions)
+        st.pyplot(fig_pie)
+    
+    with tab4:
+        st.subheader("All Transactions Distribution")
+        fig_donut = plot_category_income_expense(transactions)
+        st.pyplot(fig_donut)
+    
+    with tab5:
+        st.subheader("Cumulative Balance Progression")
+        fig_cumulative = plot_cumulative_balance(transactions)
+        st.pyplot(fig_cumulative)
+else:
+    st.info("📊 Add transactions to see analytics")
+

@@ -122,6 +122,18 @@ def get_transactions_by_user(user_id: int, limit: int = 200) -> List[Transaction
     return [Transaction.from_row(tuple(r)) for r in rows]
 
 
+def get_transaction_by_id(tx_id: int) -> Optional[Transaction]:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, user_id, date, amount, category, ttype, description FROM transactions WHERE id = ?",
+        (tx_id,)
+    )
+    row = cur.fetchone()
+    conn.close()
+    return Transaction.from_row(tuple(row)) if row else None
+
+
 def get_balance(user_id: int) -> float:
     conn = get_connection()
     cur = conn.cursor()
@@ -152,3 +164,39 @@ def get_monthly_summary(user_id: int) -> List[Dict]:
     for r in rows:
         summary.append({"month": r["month"], "income": float(r["income"] or 0.0), "expense": float(r["expense"] or 0.0)})
     return summary
+
+
+def update_transaction(tx_id: int, user_id: int, date_iso: str, amount: float, category: str, ttype: str, description: str = None) -> Tuple[bool, str]:
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE transactions SET date = ?, amount = ?, category = ?, ttype = ?, description = ? WHERE id = ? AND user_id = ?",
+            (date_iso, amount, category, ttype, description, tx_id, user_id)
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            return False, "Transaction not found or not authorized"
+        return True, "Updated"
+    except Exception as e:
+        return False, f"Error: {e}"
+    finally:
+        conn.close()
+
+
+def delete_transaction(tx_id: int, user_id: int) -> Tuple[bool, str]:
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM transactions WHERE id = ? AND user_id = ?",
+            (tx_id, user_id)
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            return False, "Transaction not found or not authorized"
+        return True, "Deleted"
+    except Exception as e:
+        return False, f"Error: {e}"
+    finally:
+        conn.close()
