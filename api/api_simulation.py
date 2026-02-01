@@ -2,7 +2,8 @@
 
 from typing import Tuple, Dict, Any, List
 from auth import register_user, login_user, current_user_safe
-from finance.finance_service import add_transaction_validated, get_transactions_filtered, update_transaction_validated, delete_transaction
+from finance.finance_service import add_transaction_validated, get_transactions_filtered, update_transaction_validated, delete_transaction, calculate_balance, export_transactions_csv
+from finance.categories import get_categories
 from database.db import get_monthly_summary
 from database.models import Transaction
 from auth.auth_utils import validate_username_password
@@ -29,7 +30,7 @@ def api_get_transactions(user_id: int, **filters) -> Dict[str, Any]:
     txs: List[Transaction] = get_transactions_filtered(user_id, **filters)
     
     serialized = [
-        {"id": t.id, "user_id": t.user_id, "date": t.date, "amount": t.amount, "category": t.category, "type": t.ttype, "description": t.description}
+        {"id": t.id, "user_id": t.user_id, "date": t.date, "amount": t.amount, "category": t.category, "ttype": t.ttype, "description": t.description}
         for t in txs
     ]
     return {"success": True, "transactions": serialized}
@@ -61,3 +62,30 @@ def api_get_monthly_summary(user_id: int) -> Dict[str, Any]:
         return {"success": False, "message": "Auth required"}
     summary = get_monthly_summary(user_id)
     return {"success": True, "summary": summary}
+
+
+def api_get_categories(ttype: str) -> Dict[str, Any]:
+    categories = get_categories(ttype)
+    return {"success": True, "categories": categories}
+
+
+def api_get_balance(user_id: int) -> Dict[str, Any]:
+    if not user_id:
+        return {"success": False, "message": "Auth required"}
+    balance = calculate_balance(user_id)
+    return {"success": True, "balance": balance}
+
+
+def api_export_csv(user_id: int) -> Dict[str, Any]:
+    if not user_id:
+        return {"success": False, "message": "Auth required"}
+    success, path_or_err = export_transactions_csv(user_id)
+    if success:
+        # Read the file content
+        try:
+            with open(path_or_err, "r", encoding="utf-8") as f:
+                csv_content = f.read()
+            return {"success": True, "csv": csv_content, "filename": path_or_err.split("\\")[-1]}
+        except:
+            return {"success": False, "message": "Error reading CSV"}
+    return {"success": False, "message": path_or_err}

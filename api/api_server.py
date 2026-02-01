@@ -17,11 +17,23 @@ from api.api_simulation import (
     api_post_transaction,
     api_update_transaction,
     api_delete_transaction,
-    api_get_monthly_summary
+    api_get_monthly_summary,
+    api_get_categories,
+    api_get_balance,
+    api_export_csv
 )
+from database.db import init_db
 
 
 app = FastAPI(title="Personal Finance Tracker API")
+
+
+# @app.on_event("startup")
+# def startup_event():
+#     init_db()
+
+
+# ============ Request/Response Models ============
 
 
 # ============ Request/Response Models ============
@@ -50,6 +62,10 @@ class TransactionUpdateRequest(BaseModel):
     category: str
     ttype: str
     description: Optional[str] = None
+
+
+class CategoriesRequest(BaseModel):
+    ttype: str
 
 
 # ============ Auth Endpoints ============
@@ -131,6 +147,31 @@ def delete_transaction(user_id: int, tx_id: int):
 def get_monthly_summary(user_id: int):
     """Get monthly income/expense summary"""
     result = api_get_monthly_summary(user_id)
+    if not result["success"]:
+        raise HTTPException(status_code=401, detail=result["message"])
+    return result
+
+
+@app.get("/categories")
+def get_categories_endpoint(ttype: str):
+    """Get categories for transaction type"""
+    result = api_get_categories(ttype)
+    return result
+
+
+@app.get("/balance")
+def get_balance(user_id: int):
+    """Get current balance"""
+    result = api_get_balance(user_id)
+    if not result["success"]:
+        raise HTTPException(status_code=401, detail=result["message"])
+    return result
+
+
+@app.get("/export-csv")
+def export_csv(user_id: int):
+    """Export transactions to CSV"""
+    result = api_export_csv(user_id)
     if not result["success"]:
         raise HTTPException(status_code=401, detail=result["message"])
     return result
